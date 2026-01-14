@@ -4,7 +4,11 @@
     "version": "1.0.0",
     "description": "Block snake related content from your Twitter/X feed",
 
-    "action":{
+    "permissions": [
+        "storage"
+    ],
+
+    "action": {
         "default_popup": "popup.html",
         "default_icon": {
             "16": "icons/icon16.png",
@@ -12,6 +16,19 @@
             "128": "icons/icon128.png"
         }
     },
+
+    "content_scripts": [
+        {
+            "matches": [
+                "https://twitter.com/*",
+                "https://x.com/*"
+            ],
+            "js": [
+                "content.js"
+            ],
+            "run_at": "document_idle"
+        }
+    ],
 
     "icons": {
         "16": "icons/icon16.png",

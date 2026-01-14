@@ -1,16 +1,63 @@
-<!-- popup.html -->
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <style>
-    html {
-      min-height: 5em;
-      min-width: 10em;
-      background: salmon;
-    }
-  </style>
+  <meta charset="UTF-8" />
+  <title>PhobiaBlocker</title>
+  <link rel="stylesheet" href="popup.css" />
 </head>
+
 <body>
-  <p>Hello, world!</p>
+
+  <header>
+    <h1>🛡️ PhobiaBlocker</h1>
+  </header>
+
+  <!-- Enable toggle -->
+  <section class="section">
+    <div class="row">
+      <label for="enabled-toggle">Enable Blocker</label>
+      <input id="enabled-toggle" type="checkbox" />
+    </div>
+  </section>
+
+  <!-- Blocking mode (UI only for now) -->
+  <section class="section">
+    <label class="section-title">Blocking Mode</label>
+
+    <div class="mode-group">
+      <label class="mode-option">
+        <input type="radio" name="mode" value="remove" checked />
+        <span>Remove Tweet</span>
+      </label>
+
+      <label class="mode-option">
+        <input type="radio" name="mode" value="blur" />
+        <span>Blur Image (coming soon)</span>
+      </label>
+    </div>
+  </section>
+
+  <!-- Analytics toggle -->
+  <section class="section">
+    <div class="row">
+      <label for="analytics-toggle">Analytics Mode</label>
+      <input id="analytics-toggle" type="checkbox" />
+    </div>
+  </section>
+
+  <!-- Analytics info -->
+  <section class="analytics-box">
+    <strong>Analytics</strong>
+    <div class="analytics-value">
+      Blocked tweets: <strong>0</strong>
+    </div>
+  </section>
+
+  <footer class="footer">
+    Test UI • No ML yet
+  </footer>
+
+  <script src="popup.js"></script>
 </body>
 </html>
+<!-- popup.html -->
