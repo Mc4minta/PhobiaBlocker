@@ -3,133 +3,100 @@
 // ==============================
 
 let extensionEnabled = true;
-let currentMode = "remove";
 
-// Snake detection pattern (keywords + common emojis)
-const SNAKE_REGEX = /\b(snake|cobra|python|viper|boa|งู)\b|🐍|🐍|🐍/i;
+// Detection patterns
+const SNAKE_REGEX = /\b(snake|cobra|python|viper|boa|งู|anaconda|rattlesnake)\b|🐍/gi;
 
-// UI Constants
-const BANNER_FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+// Track processed tweets with their original state
+const processedTweets = new WeakMap();
 
 // ==============================
-// Listen to popup changes
+// Storage Change Listeners
 // ==============================
-chrome.storage.onChanged.addListener((changes) => {
-  if (changes.extensionEnabled) {
-    extensionEnabled = changes.extensionEnabled.newValue;
-    if (!extensionEnabled) {
-      restoreAllTweets();
-    } else {
-      location.reload(); // Refresh when turned back ON
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === "sync") {
+    if (changes.extensionEnabled) {
+      extensionEnabled = changes.extensionEnabled.newValue;
+      if (!extensionEnabled) {
+        restoreAllTweets();
+      } else {
+        reprocessAllTweets();
+      }
     }
-  }
-
-  if (changes.mode) {
-    location.reload(); // Refresh when mode changes
   }
 });
 
 // ==============================
-// Detection logic (Robust)
+// Detection Logic
 // ==============================
 function shouldBlockTweet(article) {
   const text = article.innerText || article.textContent || "";
-
-  // 1. Check text content
-  if (SNAKE_REGEX.test(text)) return true;
-
-  // 2. Check image alt text (Twitter often puts descriptions here)
-  const images = article.querySelectorAll("img");
-  for (const img of images) {
-    if (SNAKE_REGEX.test(img.getAttribute("alt") || "")) return true;
-  }
-
-  return false;
+  return SNAKE_REGEX.test(text);
 }
 
 // ==============================
-// Processing Modes
+// Processing Modes (Remove Only)
 // ==============================
 function processTweet(article) {
   if (!extensionEnabled) return;
   if (!shouldBlockTweet(article)) return;
 
-  if (currentMode === "remove") {
-    article.style.display = "none";
-    article.dataset.phobiaHidden = "true";
-  } else if (currentMode === "replace") {
-    replaceTweetMedia(article);
-    article.dataset.phobiaHidden = "true";
+  // Store original state if not already stored
+  if (!processedTweets.has(article)) {
+    processedTweets.set(article, {
+      originalDisplay: article.style.display,
+      processed: true
+    });
   }
-}
 
-/**
- * Replace images with a "Shield" placeholder
- */
-function replaceTweetMedia(article) {
-  const mediaContainers = article.querySelectorAll('div[data-testid="tweetPhoto"], div[role="presentation"] img');
-
-  mediaContainers.forEach(media => {
-    // If it's an image, hide it and add a placeholder
-    const img = media.tagName === "IMG" ? media : media.querySelector("img");
-    if (!img || img.dataset.phobiaReplaced) return;
-
-    img.dataset.phobiaReplaced = "true";
-    img.style.visibility = "hidden"; // Keep layout, hide image
-
-    const placeholder = document.createElement("div");
-    placeholder.className = "phobia-shield-placeholder";
-    placeholder.style.cssText = `
-      position: absolute;
-      inset: 0;
-      background: #15202b;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      border: 1px solid #333;
-      border-radius: 12px;
-      z-index: 5;
-      color: #8899a6;
-      font-family: ${BANNER_FONT};
-    `;
-
-    placeholder.innerHTML = `
-      <div style="font-size: 24px; margin-bottom: 8px;">🛡️</div>
-      <div style="font-size: 13px; font-weight: 600;">Content Filtered</div>
-    `;
-
-    // Ensure parent is relative so absolute inset works
-    const container = img.parentElement;
-    if (container) {
-      container.style.position = "relative";
-      container.appendChild(placeholder);
-    }
-  });
+  // Pure Remove Mode
+  article.style.display = "none";
+  article.dataset.phobiaHidden = "true";
 }
 
 // ==============================
-// Restore logic (Smart)
+// Restore Functions
 // ==============================
 function restoreAllTweets() {
   const tweets = document.querySelectorAll('article[data-testid="tweet"]');
+  tweets.forEach(tweet => {
+    restoreTweet(tweet);
+  });
+}
+
+function restoreTweet(tweet) {
+  // Restore display
+  const originalState = processedTweets.get(tweet);
+  if (originalState) {
+    tweet.style.display = originalState.originalDisplay || "";
+  } else {
+    tweet.style.display = "";
+  }
+
+  // Clear processing flags
+  delete tweet.dataset.phobiaHidden;
+  delete tweet.dataset.phobiaProcessed;
+
+  processedTweets.delete(tweet);
+}
+
+function reprocessAllTweets() {
+  const tweets = document.querySelectorAll('article[data-testid="tweet"]');
 
   tweets.forEach(tweet => {
-    tweet.style.display = "";
-    tweet.dataset.phobiaHidden = "false";
+    // Clear processing state
     delete tweet.dataset.phobiaProcessed;
 
-    // Remove replace placeholders
-    tweet.querySelectorAll(".phobia-shield-placeholder").forEach(p => p.remove());
-    tweet.querySelectorAll("img[data-phobia-replaced]").forEach(img => {
-      img.style.visibility = "visible";
-      delete img.dataset.phobiaReplaced;
-    });
+    // Restore first
+    restoreTweet(tweet);
+
+    // Then reprocess
+    processTweet(tweet);
   });
 }
 
 // ==============================
-// Scan loop
+// Scanning
 // ==============================
 function scanAndProcessTweets() {
   if (!extensionEnabled) return;
@@ -144,29 +111,41 @@ function scanAndProcessTweets() {
 }
 
 // ==============================
-// Lifecycle
+// Initialization
 // ==============================
-chrome.storage.sync.get(
-  ["extensionEnabled", "mode"],
-  (state) => {
-    extensionEnabled = state.extensionEnabled !== false;
-    currentMode = state.mode || "remove";
+function init() {
+  chrome.storage.sync.get(["extensionEnabled"], (syncData) => {
+    extensionEnabled = syncData.extensionEnabled !== false;
 
+    // Initial scan
     scanAndProcessTweets();
-  }
-);
+  });
+}
 
-// Observer for new tweets
-const observer = new MutationObserver(() => scanAndProcessTweets());
-observer.observe(document.body, { childList: true, subtree: true });
+// Start extension
+init();
 
-// Backup scan
-setInterval(scanAndProcessTweets, 2000);
+// Watch for new tweets
+const observer = new MutationObserver(() => {
+  scanAndProcessTweets();
+});
 
-// Reset on URL change
+observer.observe(document.body, {
+  childList: true,
+  subtree: true
+});
+
+// Periodic backup scan
+setInterval(scanAndProcessTweets, 3000);
+
+// Handle navigation
 let lastUrl = location.href;
 new MutationObserver(() => {
   if (location.href !== lastUrl) {
     lastUrl = location.href;
+    setTimeout(scanAndProcessTweets, 1000);
   }
-}).observe(document, { subtree: true, childList: true });
+}).observe(document, {
+  subtree: true,
+  childList: true
+});
