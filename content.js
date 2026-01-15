@@ -43,6 +43,9 @@ chrome.storage.onChanged.addListener((changes) => {
 // Detection logic
 // ==============================
 function shouldBlockTweet(article) {
+  // TO DO: implement nlp / ml soon
+
+
   const text = article.innerText || "";
   return SNAKE_REGEX.test(text);
 }
@@ -59,8 +62,8 @@ function processTweet(article) {
     article.dataset.phobiaHidden = "true";
   }
 
-  if (currentMode === "blur") {
-    blurTweetMedia(article);
+  if (currentMode === "replace") {
+    replaceTweetMedia(article);
     article.dataset.phobiaHidden = "true";
   }
 
@@ -69,64 +72,10 @@ function processTweet(article) {
 }
 
 // ==============================
-// Blur logic (IMAGE ONLY, Twitter-like)
+// Replace logic (IMAGE ONLY, Twitter-like)
 // ==============================
-function blurTweetMedia(article) {
-  const media = article.querySelectorAll("img");
+function replaceTweetMedia(article) {
 
-  media.forEach(img => {
-    if (img.dataset.phobiaBlurred) return;
-
-    img.dataset.phobiaBlurred = "true";
-
-    // Find the real media container (Twitter nests deeply)
-    const container = img.closest('div[role="presentation"], div');
-    if (!container) return;
-
-    container.style.position = "relative";
-    container.style.overflow = "hidden";
-
-    // Blur + dim image
-    img.style.filter = "blur(18px) brightness(0.7)";
-    img.style.transition = "filter 0.3s";
-
-    // Overlay (dark, subtle)
-    const overlay = document.createElement("div");
-    overlay.className = "phobia-sensitive-overlay";
-
-    overlay.style.cssText = `
-      position: absolute;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.45);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      z-index: 2;
-    `;
-
-    // Label box (Twitter-style)
-    const label = document.createElement("div");
-    label.innerText = "Sensitive content";
-    label.style.cssText = `
-      padding: 6px 12px;
-      border-radius: 9999px;
-      background: rgba(0, 0, 0, 0.6);
-      color: white;
-      font-size: 13px;
-      font-weight: 600;
-      pointer-events: none;
-    `;
-
-    overlay.appendChild(label);
-
-    overlay.addEventListener("click", () => {
-      img.style.filter = "none";
-      overlay.remove();
-    });
-
-    container.appendChild(overlay);
-  });
 }
 
 // ==============================
@@ -140,13 +89,6 @@ function restoreAllTweets() {
   tweets.forEach(tweet => {
     tweet.style.display = "";
     tweet.dataset.phobiaHidden = "false";
-
-    tweet.querySelectorAll("[data-phobia-blurred]").forEach(el => {
-      el.style.filter = "none";
-      delete el.dataset.phobiaBlurred;
-    });
-
-    tweet.querySelectorAll(".phobia-overlay").forEach(o => o.remove());
   });
 
   removedCount = 0;
