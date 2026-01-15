@@ -10,6 +10,11 @@ let currentMode = "remove";
 // Snake detection pattern (keywords + common emojis)
 const SNAKE_REGEX = /\b(snake|cobra|python|viper|boa|งู)\b|🐍|🐍|🐍/i;
 
+// UI Constants
+const BANNER_GRADIENT = "linear-gradient(135deg, #1a1a1a 0%, #333333 100%)";
+const BANNER_SHADOW = "0 4px 12px rgba(0, 0, 0, 0.3)";
+const BANNER_FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+
 // ==============================
 // Listen to popup changes
 // ==============================
@@ -171,7 +176,7 @@ function createAnalyticsBanner() {
   `;
 
   banner.innerHTML = `
-    <span style="font-size: 18px;">🛡️</span>
+    <span style="font-size: 18px;">�️</span>
     <span>Blocked: <strong id="phobia-count" style="color: #4facfe;">0</strong></span>
   `;
 
