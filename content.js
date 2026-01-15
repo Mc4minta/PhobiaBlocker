@@ -1,6 +1,7 @@
 let extensionEnabled = true;
 let removedCount = 0;
 
+// const SNAKE_KEYWORDS = /\b(snake)\b/i;
 const SNAKE_KEYWORDS = /\b(snake)\b/i;
 const processedTweets = new WeakMap();
 
@@ -25,8 +26,14 @@ chrome.storage.onChanged.addListener((changes) => {
   }
 });
 
+function smartDecision(text) {
+  // use nlp to analyze the text and make a decision
+
+}
+
 function shouldBlockTweet(article) {
   const text = article.innerText || "";
+  // const match = smartDecision(text);
   const match = text.match(SNAKE_KEYWORDS);
 
   if (match) {
