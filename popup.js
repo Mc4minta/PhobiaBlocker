@@ -20,7 +20,9 @@ if (!enableToggle || !analyticsToggle || !analyticsBox || modeRadios.length === 
     blockedCount: 0
   };
 
-  // Load state
+  // ==============================
+  // Load saved state
+  // ==============================
   chrome.storage.sync.get(DEFAULT_STATE, (state) => {
     enableToggle.checked = state.extensionEnabled;
     analyticsToggle.checked = state.analyticsEnabled;
@@ -33,23 +35,31 @@ if (!enableToggle || !analyticsToggle || !analyticsBox || modeRadios.length === 
     updateAnalyticsCount(state.blockedCount);
   });
 
-  // Enable / disable
+  // ==============================
+  // Enable / Disable extension
+  // ==============================
   enableToggle.addEventListener("change", () => {
     chrome.storage.sync.set({
       extensionEnabled: enableToggle.checked
     });
   });
 
-  // Mode change (future use)
+  // ==============================
+  // Blocking mode switch
+  // ==============================
   modeRadios.forEach(radio => {
     radio.addEventListener("change", () => {
       if (radio.checked) {
-        chrome.storage.sync.set({ mode: radio.value });
+        chrome.storage.sync.set({
+          mode: radio.value
+        });
       }
     });
   });
 
+  // ==============================
   // Analytics toggle
+  // ==============================
   analyticsToggle.addEventListener("change", () => {
     const enabled = analyticsToggle.checked;
     analyticsBox.style.display = enabled ? "block" : "none";
@@ -60,11 +70,12 @@ if (!enableToggle || !analyticsToggle || !analyticsBox || modeRadios.length === 
   });
 }
 
+// ==============================
 // Update analytics UI
+// ==============================
 function updateAnalyticsCount(count) {
   const value = document.querySelector(".analytics-value strong");
   if (value) {
     value.textContent = count;
   }
 }
-//popup.js

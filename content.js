@@ -1,13 +1,13 @@
 // ==============================
 // PhobiaBlocker Content Script
-// Removes tweets mentioning snakes
 // ==============================
 
 let removedCount = 0;
 let analyticsEnabled = false;
 let extensionEnabled = true;
+let currentMode = "remove";
 
-// Snake keyword detection (simple first)
+// Snake detection
 const SNAKE_REGEX = /\b(snake|cobra|python|viper|boa|งู)\b/i;
 
 // ==============================
@@ -16,10 +16,8 @@ const SNAKE_REGEX = /\b(snake|cobra|python|viper|boa|งู)\b/i;
 chrome.storage.onChanged.addListener((changes) => {
 
   if (changes.analyticsEnabled) {
-    analyticsEnabled = changes.analyticsEnabled.newValue;
-    if (!analyticsEnabled) {
-      removeAnalyticsBanner();
-    }
+    analyticsEnabled = changes.analyticsEnabled.newValue === true;
+    if (!analyticsEnabled) removeAnalyticsBanner();
   }
 
   if (changes.extensionEnabled) {
@@ -30,56 +28,141 @@ chrome.storage.onChanged.addListener((changes) => {
       removeAnalyticsBanner();
     } else {
       removedCount = 0;
-      scanAndRemoveTweets();
+      scanAndProcessTweets();
     }
+  }
+
+  if (changes.mode) {
+    currentMode = changes.mode.newValue || "remove";
+    restoreAllTweets();
+    scanAndProcessTweets();
   }
 });
 
 // ==============================
 // Detection logic
 // ==============================
-function shouldRemoveTweet(article) {
-  const text = article.innerText || article.textContent || "";
+function shouldBlockTweet(article) {
+  const text = article.innerText || "";
   return SNAKE_REGEX.test(text);
 }
 
 // ==============================
-// Remove / Restore
+// Process tweet
 // ==============================
-function removeTweet(article) {
+function processTweet(article) {
   if (!extensionEnabled) return;
+  if (!shouldBlockTweet(article)) return;
 
-  if (shouldRemoveTweet(article)) {
+  if (currentMode === "remove") {
     article.style.display = "none";
     article.dataset.phobiaHidden = "true";
-    removedCount++;
-    updateAnalyticsBanner();
   }
+
+  if (currentMode === "blur") {
+    blurTweetMedia(article);
+    article.dataset.phobiaHidden = "true";
+  }
+
+  removedCount++;
+  updateAnalyticsBanner();
 }
 
+// ==============================
+// Blur logic (IMAGE ONLY, Twitter-like)
+// ==============================
+function blurTweetMedia(article) {
+  const media = article.querySelectorAll("img");
+
+  media.forEach(img => {
+    if (img.dataset.phobiaBlurred) return;
+
+    img.dataset.phobiaBlurred = "true";
+
+    // Find the real media container (Twitter nests deeply)
+    const container = img.closest('div[role="presentation"], div');
+    if (!container) return;
+
+    container.style.position = "relative";
+    container.style.overflow = "hidden";
+
+    // Blur + dim image
+    img.style.filter = "blur(18px) brightness(0.7)";
+    img.style.transition = "filter 0.3s";
+
+    // Overlay (dark, subtle)
+    const overlay = document.createElement("div");
+    overlay.className = "phobia-sensitive-overlay";
+
+    overlay.style.cssText = `
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 2;
+    `;
+
+    // Label box (Twitter-style)
+    const label = document.createElement("div");
+    label.innerText = "Sensitive content";
+    label.style.cssText = `
+      padding: 6px 12px;
+      border-radius: 9999px;
+      background: rgba(0, 0, 0, 0.6);
+      color: white;
+      font-size: 13px;
+      font-weight: 600;
+      pointer-events: none;
+    `;
+
+    overlay.appendChild(label);
+
+    overlay.addEventListener("click", () => {
+      img.style.filter = "none";
+      overlay.remove();
+    });
+
+    container.appendChild(overlay);
+  });
+}
+
+// ==============================
+// Restore logic
+// ==============================
 function restoreAllTweets() {
-  const hiddenTweets = document.querySelectorAll(
+  const tweets = document.querySelectorAll(
     'article[data-phobia-hidden="true"]'
   );
 
-  hiddenTweets.forEach(tweet => {
+  tweets.forEach(tweet => {
     tweet.style.display = "";
     tweet.dataset.phobiaHidden = "false";
+
+    tweet.querySelectorAll("[data-phobia-blurred]").forEach(el => {
+      el.style.filter = "none";
+      delete el.dataset.phobiaBlurred;
+    });
+
+    tweet.querySelectorAll(".phobia-overlay").forEach(o => o.remove());
   });
 
   removedCount = 0;
+  chrome.storage.sync.set({ blockedCount: 0 });
 }
 
 // ==============================
-// Analytics banner
+// Analytics banner (page)
 // ==============================
 function createAnalyticsBanner() {
   if (!analyticsEnabled) return null;
 
-  const existing = document.getElementById("phobia-analytics");
-  if (existing) return existing;
+  let banner = document.getElementById("phobia-analytics");
+  if (banner) return banner;
 
-  const banner = document.createElement("div");
+  banner = document.createElement("div");
   banner.id = "phobia-analytics";
   banner.style.cssText = `
     position: fixed;
@@ -93,9 +176,7 @@ function createAnalyticsBanner() {
     z-index: 10000;
   `;
 
-  banner.innerHTML =
-    `🐍 Blocked tweets: <span id="phobia-count">0</span>`;
-
+  banner.innerHTML = `🐍 Blocked tweets: <span id="phobia-count">0</span>`;
   document.body.appendChild(banner);
   return banner;
 }
@@ -103,13 +184,14 @@ function createAnalyticsBanner() {
 function updateAnalyticsBanner() {
   if (!analyticsEnabled) return;
 
+  chrome.storage.sync.set({
+    blockedCount: removedCount
+  });
+
   const banner = createAnalyticsBanner();
   if (!banner) return;
 
-  const countSpan = banner.querySelector("#phobia-count");
-  if (countSpan) {
-    countSpan.textContent = removedCount;
-  }
+  banner.querySelector("#phobia-count").textContent = removedCount;
 }
 
 function removeAnalyticsBanner() {
@@ -118,9 +200,9 @@ function removeAnalyticsBanner() {
 }
 
 // ==============================
-// Scan logic (core loop)
+// Scan logic
 // ==============================
-function scanAndRemoveTweets() {
+function scanAndProcessTweets() {
   if (!extensionEnabled) return;
 
   const tweets = document.querySelectorAll(
@@ -129,9 +211,8 @@ function scanAndRemoveTweets() {
 
   tweets.forEach(tweet => {
     if (tweet.dataset.phobiaProcessed) return;
-
     tweet.dataset.phobiaProcessed = "true";
-    removeTweet(tweet);
+    processTweet(tweet);
   });
 }
 
@@ -139,12 +220,15 @@ function scanAndRemoveTweets() {
 // Initial load
 // ==============================
 chrome.storage.sync.get(
-  ["analyticsEnabled", "extensionEnabled"],
-  (result) => {
-    analyticsEnabled = result.analyticsEnabled || false;
-    extensionEnabled = result.extensionEnabled !== false;
+  ["analyticsEnabled", "extensionEnabled", "mode", "blockedCount"],
+  (state) => {
+    analyticsEnabled = state.analyticsEnabled === true;
+    extensionEnabled = state.extensionEnabled !== false;
+    currentMode = state.mode || "remove";
+    removedCount = state.blockedCount || 0;
 
-    scanAndRemoveTweets();
+    console.log("[PhobiaBlocker] mode =", currentMode);
+    scanAndProcessTweets();
   }
 );
 
@@ -152,7 +236,7 @@ chrome.storage.sync.get(
 // Observe dynamic timeline
 // ==============================
 const observer = new MutationObserver(() => {
-  scanAndRemoveTweets();
+  scanAndProcessTweets();
 });
 
 observer.observe(document.body, {
@@ -161,9 +245,9 @@ observer.observe(document.body, {
 });
 
 // Backup scan
-setInterval(scanAndRemoveTweets, 2000);
+setInterval(scanAndProcessTweets, 2000);
 
-// Reset counter on navigation
+// Reset on navigation
 let lastUrl = location.href;
 new MutationObserver(() => {
   if (location.href !== lastUrl) {
@@ -172,4 +256,3 @@ new MutationObserver(() => {
     updateAnalyticsBanner();
   }
 }).observe(document, { subtree: true, childList: true });
-//content.js
