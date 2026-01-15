@@ -4,14 +4,11 @@
 // ==============================
 
 const enableToggle = document.getElementById("enabled-toggle");
-const analyticsToggle = document.getElementById("analytics-toggle");
 const modeRadios = document.querySelectorAll('input[name="mode"]');
 
 const DEFAULT_STATE = {
   extensionEnabled: true,
-  analyticsEnabled: false,
-  mode: "remove",
-  blockedCount: 0
+  mode: "remove"
 };
 
 // ==============================
@@ -19,7 +16,6 @@ const DEFAULT_STATE = {
 // ==============================
 chrome.storage.sync.get(DEFAULT_STATE, (state) => {
   if (enableToggle) enableToggle.checked = state.extensionEnabled;
-  if (analyticsToggle) analyticsToggle.checked = state.analyticsEnabled;
 
   modeRadios.forEach(radio => {
     radio.checked = radio.value === state.mode;
@@ -49,14 +45,3 @@ modeRadios.forEach(radio => {
     }
   });
 });
-
-// ==============================
-// Analytics toggle
-// ==============================
-if (analyticsToggle) {
-  analyticsToggle.addEventListener("change", () => {
-    chrome.storage.sync.set({
-      analyticsEnabled: analyticsToggle.checked
-    });
-  });
-}

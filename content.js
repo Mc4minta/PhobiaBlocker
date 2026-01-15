@@ -2,8 +2,6 @@
 // PhobiaBlocker Content Script
 // ==============================
 
-let removedCount = 0;
-let analyticsEnabled = false;
 let extensionEnabled = true;
 let currentMode = "remove";
 
@@ -11,24 +9,16 @@ let currentMode = "remove";
 const SNAKE_REGEX = /\b(snake|cobra|python|viper|boa|งู)\b|🐍|🐍|🐍/i;
 
 // UI Constants
-const BANNER_GRADIENT = "linear-gradient(135deg, #1a1a1a 0%, #333333 100%)";
-const BANNER_SHADOW = "0 4px 12px rgba(0, 0, 0, 0.3)";
 const BANNER_FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
 // ==============================
 // Listen to popup changes
 // ==============================
 chrome.storage.onChanged.addListener((changes) => {
-  if (changes.analyticsEnabled) {
-    analyticsEnabled = changes.analyticsEnabled.newValue === true;
-    analyticsEnabled ? updateAnalyticsBanner() : removeAnalyticsBanner();
-  }
-
   if (changes.extensionEnabled) {
     extensionEnabled = changes.extensionEnabled.newValue;
     if (!extensionEnabled) {
       restoreAllTweets();
-      removeAnalyticsBanner();
     } else {
       location.reload(); // Refresh when turned back ON
     }
@@ -71,9 +61,6 @@ function processTweet(article) {
     replaceTweetMedia(article);
     article.dataset.phobiaHidden = "true";
   }
-
-  removedCount++;
-  updateAnalyticsBanner();
 }
 
 /**
@@ -139,66 +126,6 @@ function restoreAllTweets() {
       delete img.dataset.phobiaReplaced;
     });
   });
-
-  removedCount = 0;
-  chrome.storage.sync.set({ blockedCount: 0 });
-}
-
-// ==============================
-// Analytics banner (Polished)
-// ==============================
-function createAnalyticsBanner() {
-  if (!analyticsEnabled) return null;
-
-  let banner = document.getElementById("phobia-analytics");
-  if (banner) return banner;
-
-  banner = document.createElement("div");
-  banner.id = "phobia-analytics";
-  banner.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background: ${BANNER_GRADIENT};
-    color: white;
-    padding: 12px 18px;
-    border-radius: 10px;
-    font-size: 14px;
-    font-weight: 500;
-    font-family: ${BANNER_FONT};
-    box-shadow: ${BANNER_SHADOW};
-    z-index: 99999;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    transition: transform 0.3s ease;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  `;
-
-  banner.innerHTML = `
-    <span style="font-size: 18px;">�️</span>
-    <span>Blocked: <strong id="phobia-count" style="color: #4facfe;">0</strong></span>
-  `;
-
-  document.body.appendChild(banner);
-  return banner;
-}
-
-function updateAnalyticsBanner() {
-  if (!analyticsEnabled) return;
-
-  chrome.storage.sync.set({ blockedCount: removedCount });
-
-  const banner = createAnalyticsBanner();
-  if (!banner) return;
-
-  const countEl = banner.querySelector("#phobia-count");
-  if (countEl) countEl.textContent = removedCount;
-}
-
-function removeAnalyticsBanner() {
-  const banner = document.getElementById("phobia-analytics");
-  if (banner) banner.remove();
 }
 
 // ==============================
@@ -220,14 +147,11 @@ function scanAndProcessTweets() {
 // Lifecycle
 // ==============================
 chrome.storage.sync.get(
-  ["analyticsEnabled", "extensionEnabled", "mode", "blockedCount"],
+  ["extensionEnabled", "mode"],
   (state) => {
-    analyticsEnabled = state.analyticsEnabled === true;
     extensionEnabled = state.extensionEnabled !== false;
     currentMode = state.mode || "remove";
-    removedCount = state.blockedCount || 0;
 
-    if (analyticsEnabled) updateAnalyticsBanner();
     scanAndProcessTweets();
   }
 );
@@ -244,7 +168,5 @@ let lastUrl = location.href;
 new MutationObserver(() => {
   if (location.href !== lastUrl) {
     lastUrl = location.href;
-    removedCount = 0;
-    updateAnalyticsBanner();
   }
 }).observe(document, { subtree: true, childList: true });
